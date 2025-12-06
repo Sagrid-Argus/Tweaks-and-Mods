@@ -58,9 +58,9 @@ if (bot->GetLevel() >= 20 && bot->GetLevel() < firstmount && !custom20.empty())
 }
 #endif
 
- // =======================================================
- // Add in CheckMountStateAction.cpp - Allow Early Mounting
- // =======================================================
+ // =======================================================================================================
+ // Add in CheckMountStateAction.cpp - Allow Early Mounting - Not needed anymore after druid / shaman patch
+ // =======================================================================================================
 
 #ifdef MANGOSBOT_ZERO
 // Allow early mounting if bot has class/custom quest movement spells
