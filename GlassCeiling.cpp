@@ -29,16 +29,16 @@ void ObjectMgr::ApplyGlassCeiling(uint32 team)
     uint32 maxR14 = std::max(1U, uint32(totalPlayers * 0.003f)); 
     uint32 maxR13 = std::max(1U, uint32(totalPlayers * 0.008f)); 
     uint32 maxR12 = std::max(1U, uint32(totalPlayers * 0.02f));
-    uint32 maxR12 = std::max(1U, uint32(totalPlayers * 0.035f));
-    uint32 maxR11 = std::max(1U, uint32(totalPlayers * 0.060f));
-    uint32 maxR10 = std::max(1U, uint32(totalPlayers * 0.10f));
-    uint32 maxR09 = std::max(1U, uint32(totalPlayers * 0.159f));
-    uint32 maxR08 = std::max(1U, uint32(totalPlayers * 0.228f));
-    uint32 maxR07 = std::max(1U, uint32(totalPlayers * 0.327f));
-    uint32 maxR06 = std::max(1U, uint32(totalPlayers * 0.436f));
-    uint32 maxR05 = std::max(1U, uint32(totalPlayers * 0.566f));
-    uint32 maxR04 = std::max(1U, uint32(totalPlayers * 0.697f));
-    uint32 maxR03 = std::max(1U, uint32(totalPlayers * 0.845f));
+    uint32 maxR11 = std::max(1U, uint32(totalPlayers * 0.035f));
+    uint32 maxR10 = std::max(1U, uint32(totalPlayers * 0.060f));
+    uint32 maxR09 = std::max(1U, uint32(totalPlayers * 0.10f));
+    uint32 maxR08 = std::max(1U, uint32(totalPlayers * 0.159f));
+    uint32 maxR07 = std::max(1U, uint32(totalPlayers * 0.228f));
+    uint32 maxR06 = std::max(1U, uint32(totalPlayers * 0.327f));
+    uint32 maxR05 = std::max(1U, uint32(totalPlayers * 0.436f));
+    uint32 maxR04 = std::max(1U, uint32(totalPlayers * 0.566f));
+    uint32 maxR03 = std::max(1U, uint32(totalPlayers * 0.697f));
+    uint32 maxR02 = std::max(1U, uint32(totalPlayers * 0.845f));
     
     // Step 3: Iterate and force RP to respect bracket limits
   
@@ -72,6 +72,8 @@ void ObjectMgr::ApplyGlassCeiling(uint32 team)
             RP = std::min(RP, 9999.0f);
         if (pos >= maxR03)
             RP = std::min(RP, 4999.0f);
+        if (pos >= maxR02)
+            RP = std::min(RP, 1999.0f);
 
         // Save adjusted RP back
         player.rpEarning = RP - player.honorPoints;
