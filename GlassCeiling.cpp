@@ -1,62 +1,126 @@
-// ================================================================
-// Patch: Glass Ceiling / Percentile-Based Rank Adjustment
-// Apply AFTER DistributeRankPoints() - ObjectMgr.cpp l.3982
-// i.e.
-// DistributeRankPoints(ALLIANCE, WeekBegin, flush);
-// ApplyGlassCeiling(ALLIANCE);
-// DistributeRankPoints(HORDE, WeekBegin, flush);
-// ApplyGlassCeiling(HORDE);
-// Must check position and formulas, but this is the concept
-// ================================================================
+// =============================================================
+// Patch: Glass Ceiling / Percentile-Based PvP Rank Adjustment
+// Enforcing top-percentage rank limits and RP ceilings per week
+// =============================================================
+
+// From l. 833 ObjectMgr.h
+
+void ApplyGlassCeiling(uint32 team);
+
+// From l. 3766 ObjectMgr.cpp
+
+void ObjectMgr::LoadStandingList()
+{
+    uint32 LastWeekBegin = sWorld.GetDateLastMaintenanceDay() - 7;
+    LoadStandingList(LastWeekBegin);
+
+    // Distribution of RP earning without flushing table
+    DistributeRankPoints(ALLIANCE, LastWeekBegin);
+    ApplyGlassCeiling(ALLIANCE); // Apply glass ceiling immediately
+
+    DistributeRankPoints(HORDE, LastWeekBegin);
+    ApplyGlassCeiling(HORDE);    // Apply glass ceiling immediately
+
+    sLog.outString();
+    sLog.outString(">> Loaded %u Horde and %u Ally honor standing definitions",
+                   static_cast<uint32>(HordeHonorStandingList.size()),
+                   static_cast<uint32>(AllyHonorStandingList.size()));
+}
+
+// From l.3826 ObjectMgr.cpp
+
+void ObjectMgr::FlushRankPoints(uint32 dateTop)
+{
+    // FLUSH CP
+    auto queryResult = CharacterDatabase.PQuery(
+        "SELECT date FROM character_honor_cp WHERE TYPE = %u AND date <= %u "
+        "GROUP BY date ORDER BY date DESC", HONORABLE, dateTop);
+
+    if (queryResult)
+    {
+        uint32 date;
+        bool flush;
+        uint32 WeekBegin = dateTop - 7;
+
+        // search latest non-processed date if the server has been offline for multiple weeks
+        do
+        {
+            date = queryResult->Fetch()->GetUInt32();
+            while (WeekBegin && date < WeekBegin)
+                WeekBegin -= 7;
+        }
+        while (queryResult->NextRow());
+
+        // start to flush from latest non-processed date to current
+        while (WeekBegin <= dateTop)
+        {
+            LoadStandingList(WeekBegin);
+
+            flush = WeekBegin < dateTop - 7; // flush only older weeks
+
+            DistributeRankPoints(ALLIANCE, WeekBegin, flush);
+            ApplyGlassCeiling(ALLIANCE); // Apply immediately after
+
+            DistributeRankPoints(HORDE, WeekBegin, flush);
+            ApplyGlassCeiling(HORDE);    // Apply immediately after
+
+            WeekBegin += 7;
+        }
+    }
+
+// From l. 3983 ObjectMgr.cpp
 
 void ObjectMgr::ApplyGlassCeiling(uint32 team)
 {
-    HonorStandingList list = GetStandingListBySide(team);
+    HonorStandingList list = sObjectMgr.GetStandingListBySide(team);
 
     if (list.empty())
         return;
 
-    // Step 1: Sort players by total RP descending
+    std::vector<HonorStanding> sorted;
+    sorted.reserve(list.size());
+    for (auto const& entry : list)
+        sorted.push_back(entry);
+
+    // Sort players by descending RP = rpEarning + honorPoints
     
-    std::sort(list.begin(), list.end(), [](const HonorStanding& a, const HonorStanding& b){
+    std::sort(sorted.begin(), sorted.end(), [](const HonorStanding& a, const HonorStanding& b){
         return (a.rpEarning + a.honorPoints) > (b.rpEarning + b.honorPoints);
     });
 
-    uint32 totalPlayers = list.size();
+    uint32 totalPlayers = sorted.size();
 
-    // Step 2: Define maximum positions for each rank based on cumulative percentiles
+    // Percentile based max positions
     
-    uint32 maxR14 = std::max(1U, uint32(totalPlayers * 0.003f));   // Top 0.3%
-    uint32 maxR13 = std::max(1U, uint32(totalPlayers * 0.008f));   // Top 0.8%
-    uint32 maxR12 = std::max(1U, uint32(totalPlayers * 0.02f));    // Top 2%
-    uint32 maxR11 = std::max(1U, uint32(totalPlayers * 0.035f));   // Top 3.5%
-    uint32 maxR10 = std::max(1U, uint32(totalPlayers * 0.060f));   // Top 6%
-    uint32 maxR09 = std::max(1U, uint32(totalPlayers * 0.10f));    // Top 10%
-    uint32 maxR08 = std::max(1U, uint32(totalPlayers * 0.159f));   // Top 15.9%
-    uint32 maxR07 = std::max(1U, uint32(totalPlayers * 0.228f));   // Top 22.8%
-    uint32 maxR06 = std::max(1U, uint32(totalPlayers * 0.327f));   // Top 32.7%
-    uint32 maxR05 = std::max(1U, uint32(totalPlayers * 0.436f));   // Top 43.6%
-    uint32 maxR04 = std::max(1U, uint32(totalPlayers * 0.566f));   // Top 56.6%
-    uint32 maxR03 = std::max(1U, uint32(totalPlayers * 0.697f));   // Top 69.7%
-    uint32 maxR02 = std::max(1U, uint32(totalPlayers * 0.845f));   // Top 84.5%
+    uint32 maxR14 = std::max(1U, uint32(totalPlayers * 0.003f));
+    uint32 maxR13 = std::max(1U, uint32(totalPlayers * 0.008f));
+    uint32 maxR12 = std::max(1U, uint32(totalPlayers * 0.02f));
+    uint32 maxR11 = std::max(1U, uint32(totalPlayers * 0.035f));
+    uint32 maxR10 = std::max(1U, uint32(totalPlayers * 0.060f));
+    uint32 maxR09 = std::max(1U, uint32(totalPlayers * 0.10f));
+    uint32 maxR08 = std::max(1U, uint32(totalPlayers * 0.159f));
+    uint32 maxR07 = std::max(1U, uint32(totalPlayers * 0.228f));
+    uint32 maxR06 = std::max(1U, uint32(totalPlayers * 0.327f));
+    uint32 maxR05 = std::max(1U, uint32(totalPlayers * 0.436f));
+    uint32 maxR04 = std::max(1U, uint32(totalPlayers * 0.566f));
+    uint32 maxR03 = std::max(1U, uint32(totalPlayers * 0.697f));
+    uint32 maxR02 = std::max(1U, uint32(totalPlayers * 0.845f));
 
-    // Step 3: Iterate over players and force RP according to percentile ceiling
-    
     for (uint32 pos = 0; pos < totalPlayers; ++pos)
     {
-        HonorStanding& player = list[pos];
+        HonorStanding& player = sorted[pos];
         float RP = player.rpEarning + player.honorPoints;
 
-        // Apply ceiling according to rank percentile
-        
+    // Apply RP ceilings
+    
         if (pos >= maxR14)
-            RP = std::min(RP, 59999.0f); // Outside top 0.3% → max RP for R14
+            RP = std::min(RP, 59999.0f);
         else if (pos >= maxR13)
-            RP = std::min(RP, 54999.0f); // Outside top 0.8% → max RP for R13
+            RP = std::min(RP, 54999.0f);
         else if (pos >= maxR12)
-            RP = std::min(RP, 49999.0f); // Outside top 2% → max RP for R12
+            RP = std::min(RP, 49999.0f);
         else if (pos >= maxR11)
-            RP = std::min(RP, 44999.0f); // etc.
+            RP = std::min(RP, 44999.0f);
         else if (pos >= maxR10)
             RP = std::min(RP, 39999.0f);
         else if (pos >= maxR09)
@@ -76,19 +140,19 @@ void ObjectMgr::ApplyGlassCeiling(uint32 team)
         else if (pos >= maxR02)
             RP = std::min(RP, 1999.0f);
 
-        // Update player's rpEarning (weekly contribution)
+    // Re compute weekly RP contribution
         
         player.rpEarning = RP - player.honorPoints;
 
-        // Update database
+    // Update DB
         
         CharacterDatabase.PExecute(
             "UPDATE characters SET stored_honor_rating = %f WHERE guid = %u",
             RP, player.guid
         );
-
-        // Debug log
+    
+        // Server Log
         
-        sLog.outString("[GlassCeiling] Player GUID %u -> RP forced to %.0f", player.guid, RP);
+        sLog.outString("[GlassCeiling] Player %u forced to %.0f RP", player.guid, RP);
     }
 }
