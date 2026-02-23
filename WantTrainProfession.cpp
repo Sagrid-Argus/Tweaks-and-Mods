@@ -45,6 +45,15 @@ public:
 
     // verification of prob first learnt professions
     std::vector<uint32> allProfessions = {164, 171, 202, 197, 165, 333}; // BS, Alch, Eng, Tailor, Leather, Enchant
+
+#ifdef MANGOSBOT_ONE
+    allProfessions.push_back(755); // Jewelcrafting
+#endif
+
+#ifdef MANGOSBOT_TWO
+    allProfessions.push_back(773); // Inscription
+#endif
+    
     for (uint32 skillId : allProfessions)
     {
         if (bot->HasSkill(skillId))
