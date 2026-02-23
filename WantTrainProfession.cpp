@@ -37,10 +37,21 @@ public:
         : CalculatedValue<uint32>(ai, qualifier) {}
 
     uint32 Calculate() override
-    {
-        Player* bot = ai->GetBot();
-        std::string q = getQualifier();
+{
+    Player* bot = ai->GetBot();
+    std::string q = getQualifier();
 
+    bool first = (q == "first"); // always return current first profession
+
+    // verification of prob first learnt professions
+    std::vector<uint32> allProfessions = {164, 171, 202, 197, 165, 333}; // BS, Alch, Eng, Tailor, Leather, Enchant
+    for (uint32 skillId : allProfessions)
+    {
+        if (bot->HasSkill(skillId))
+        {
+            return skillId;
+        }
+    }
 // 1st profession skill
         if (q == "first")
         {
