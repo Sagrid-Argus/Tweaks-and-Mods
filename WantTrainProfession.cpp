@@ -1,15 +1,4 @@
-// Hook in TrainerValues.cpp l140
-// Bot wants to train
-
-uint32 skillId = sSpellMgr.GetSpellSkill(spellId);
-
-if (sSpellMgr.IsProfessionSpell(spellId))
-{
-    if (!AI_VALUE2(bool, "want train profession", std::to_string(skillId)))
-        continue;
-}
-
-// Bot calculates what profession he wants
+// Bot calculates what profession he wants // TrainerValues.h l.45
 
 class WantTrainProfessionValue : public CalculatedValue<bool>
 {
@@ -27,6 +16,17 @@ public:
         return (skillId == first || skillId == second);
     }
 };
+
+// Hook in TrainerValues.cpp l.140
+// Bot wants to train
+
+uint32 skillId = sSpellMgr.GetSpellSkill(spellId);
+
+if (sSpellMgr.IsProfessionSpell(spellId))
+{
+    if (!AI_VALUE2(bool, "want train profession", std::to_string(skillId)))
+        continue;
+}
 
 // Exemple with Warrior Bot
 
