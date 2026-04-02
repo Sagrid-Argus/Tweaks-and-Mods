@@ -73,6 +73,8 @@ bool HunterEquipAmmoAction::Execute(Event& event)
 
     uint32 currentAmmoId = bot->GetUInt32Value(PLAYER_AMMO_ID);
 
+    const ItemPrototype* bestAmmoProto = nullptr;
+
     // Scan inventory
     for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
     {
@@ -88,17 +90,34 @@ bool HunterEquipAmmoAction::Execute(Event& event)
 
                     if (proto->Class == ammoClass && proto->SubClass == subClass)
                     {
-                        // Equip if different or none equipped
-                        if (currentAmmoId != proto->ItemId)
+                        float betterAmmoStacks = BetterStacks(proto, "ammo");
+
+                        // Best ammo possible (nothing better exists)
+                        if (betterAmmoStacks <= 0)
                         {
-                            bot->SetUInt32Value(PLAYER_AMMO_ID, proto->ItemId);
-                            bot->UpdateDamagePhysical(RANGED_ATTACK);
-                            return true;
+                            bestAmmoProto = proto;
+                            break;
                         }
+
+                        // Fallback if no better found yet
+                        if (!bestAmmoProto)
+                            bestAmmoProto = proto;
                     }
                 }
             }
+
+            // Stop outer loop if best ammo found
+            if (bestAmmoProto && BetterStacks(bestAmmoProto, "ammo") <= 0)
+                break;
         }
+    }
+
+    // Equip best ammo found
+    if (bestAmmoProto && currentAmmoId != bestAmmoProto->ItemId)
+    {
+        bot->SetUInt32Value(PLAYER_AMMO_ID, bestAmmoProto->ItemId);
+        bot->UpdateDamagePhysical(RANGED_ATTACK);
+        return true;
     }
 
     return false;
@@ -156,21 +175,33 @@ public:
 // HunterTriggers.h l204
 
 class HunterNoAmmoTrigger : public AmmoCountTrigger
+{
+public:
+    HunterNoAmmoTrigger(PlayerbotAI* ai) : AmmoCountTrigger(ai, "ammo", 1, 10), lastCheck(0) {}
+
+    virtual bool IsActive() override
     {
-    public:
-        HunterNoAmmoTrigger(PlayerbotAI* ai) : AmmoCountTrigger(ai, "ammo", 1, 10) {}
-        virtual bool IsActive() override
-    {
+        time_t now = time(nullptr);
+
+        // Throttle checks (2 seconds)
+        if (now - lastCheck < 2)
+            return false;
+
+        lastCheck = now;
+
         uint32 ammoId = bot->GetUInt32Value(PLAYER_AMMO_ID);
 
-        // No ammo equipped at all
+        // No ammo equipped
         if (ammoId == 0)
-        return AI_VALUE2(uint32, "item count", "ammo") > 0;
+            return AI_VALUE2(uint32, "item count", "ammo") > 0;
 
-        // Check if we still have THIS ammo in inventory
+        // Check if current ammo still exists
         uint32 count = AI_VALUE2(uint32, "item count", std::to_string(ammoId));
 
-        // If equipped ammo is gone, but we have other ammo → trigger
+        // If current ammo is gone but other ammo exists
         return count == 0 && AI_VALUE2(uint32, "item count", "ammo") > 0;
     }
-    };
+
+private:
+    time_t lastCheck;
+};
