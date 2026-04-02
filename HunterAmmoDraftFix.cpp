@@ -72,10 +72,9 @@ bool HunterEquipAmmoAction::Execute(Event& event)
     }
 
     uint32 currentAmmoId = bot->GetUInt32Value(PLAYER_AMMO_ID);
-
     const ItemPrototype* bestAmmoProto = nullptr;
 
-    // Scan inventory
+    // Scan inventory for best ammo
     for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
     {
         if (Bag* bag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
@@ -90,29 +89,15 @@ bool HunterEquipAmmoAction::Execute(Event& event)
 
                     if (proto->Class == ammoClass && proto->SubClass == subClass)
                     {
-                        float betterAmmoStacks = BetterStacks(proto, "ammo");
-
-                        // Best ammo possible (nothing better exists)
-                        if (betterAmmoStacks <= 0)
-                        {
-                            bestAmmoProto = proto;
-                            break;
-                        }
-
-                        // Fallback if no better found yet
-                        if (!bestAmmoProto)
+                        if (!bestAmmoProto || proto->ItemLevel > bestAmmoProto->ItemLevel)
                             bestAmmoProto = proto;
                     }
                 }
             }
-
-            // Stop outer loop if best ammo found
-            if (bestAmmoProto && BetterStacks(bestAmmoProto, "ammo") <= 0)
-                break;
         }
     }
 
-    // Equip best ammo found
+    // Equip best ammo if not already equipped
     if (bestAmmoProto && currentAmmoId != bestAmmoProto->ItemId)
     {
         bot->SetUInt32Value(PLAYER_AMMO_ID, bestAmmoProto->ItemId);
@@ -174,34 +159,37 @@ public:
 
 // HunterTriggers.h l204
 
+// HunterTriggers.h
+
 class HunterNoAmmoTrigger : public AmmoCountTrigger
 {
 public:
-    HunterNoAmmoTrigger(PlayerbotAI* ai) : AmmoCountTrigger(ai, "ammo", 1, 10), lastCheck(0) {}
+    HunterNoAmmoTrigger(PlayerbotAI* ai) 
+        : AmmoCountTrigger(ai, "ammo", 1, 10), lastCheckTime(0) {}
 
     virtual bool IsActive() override
     {
-        time_t now = time(nullptr);
+        uint32 now = time(nullptr);
 
-        // Throttle checks (2 seconds)
-        if (now - lastCheck < 2)
+        // Only check every 3 seconds to avoid spamming
+        if (now - lastCheckTime < 3)
             return false;
 
-        lastCheck = now;
+        lastCheckTime = now;
 
         uint32 ammoId = bot->GetUInt32Value(PLAYER_AMMO_ID);
 
-        // No ammo equipped
+        // No ammo equipped at all
         if (ammoId == 0)
             return AI_VALUE2(uint32, "item count", "ammo") > 0;
 
-        // Check if current ammo still exists
+        // Check if we still have THIS ammo in inventory
         uint32 count = AI_VALUE2(uint32, "item count", std::to_string(ammoId));
 
-        // If current ammo is gone but other ammo exists
+        // If equipped ammo is gone, but we have other ammo → trigger
         return count == 0 && AI_VALUE2(uint32, "item count", "ammo") > 0;
     }
 
 private:
-    time_t lastCheck;
+    time_t lastCheckTime;
 };
